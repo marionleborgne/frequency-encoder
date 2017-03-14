@@ -20,7 +20,6 @@
 # ----------------------------------------------------------------------
 
 import numpy as np
-from matplotlib import mlab
 
 from nupic.data import SENTINEL_VALUE_FOR_MISSING_DATA
 
@@ -29,16 +28,13 @@ from nupic.encoders.scalar import ScalarEncoder
 
 
 class FrequencyEncoder(Encoder):
-    def __init__(self, frequencyCutoff, numFrequencyBins, freqBinN,
-                 freqBinW, minval, maxval, normalize):
+    def __init__(self, numFrequencyBins, freqBinN, freqBinW, minval, maxval):
 
-        self.frequencyCutoff = frequencyCutoff
         self.numFrequencyBins = numFrequencyBins
         self.freqBinN = freqBinN
         self.freqBinW = freqBinW
         self.minval = minval
         self.maxval = maxval
-        self.normalize = normalize
 
         self.outputWidth = numFrequencyBins * freqBinN
         self.scalarEncoder = ScalarEncoder(n=freqBinN,
@@ -57,26 +53,21 @@ class FrequencyEncoder(Encoder):
 
     def encodeIntoArray(self, inputData, output):
         """
-        Encodes inputData and puts the encoded value into the numpy output array,
-        which is a 1-D array of length returned by getWidth().
+        Encodes inputData and puts the encoded value into the numpy output
+        array, which is a 1-D array of length returned by getWidth().
 
-        Note: The numpy output array is reused, so clear it before updating it.
-
-        @param inputData Data to encode. This should be validated by the encoder.
-        @param output numpy 1-D array of same length returned by getWidth()
+        :param inputData: (np.array) Data to encode.
+        :param output: (np.array) 1-D array. Encoder output.
         """
 
         if type(inputData) != np.ndarray:
             raise TypeError(
-                "Expected a list or numpy array but got input of type %s" % type(
-                    inputData))
+                'Expected a numpy array but input type is %s' % type(inputData))
 
         if inputData is SENTINEL_VALUE_FOR_MISSING_DATA:
             output[0:self.outputWidth] = 0
         else:
-            freqs = abs(np.fft.rfft(inputData)) ** 2
-            if self.normalize and np.max(freqs) > 0: freqs /= np.max(freqs)
-
+            freqs = getFreqs(inputData)
             freqBinSize = len(freqs) / self.numFrequencyBins
             binEncodings = []
             for i in range(self.numFrequencyBins):
@@ -88,57 +79,15 @@ class FrequencyEncoder(Encoder):
             output[0:self.outputWidth] = np.array(binEncodings).flatten()
 
 
+def getFreqs(data, log=True):
+    fft = abs(np.fft.rfft(data)) ** 2
+    if log:
+        return np.log(1 + fft)
+    else:
+        return fft
+
+
 def pprint(encoding, numFrequencyBins, freqBinSize):
     for i in range(numFrequencyBins):
         print ('Freq bin %s: '
                '%s' % (i, encoding[i * freqBinSize:(i + 1) * freqBinSize]))
-
-
-if __name__ == '__main__':
-    frequencyCutoff = 30
-    numFrequencyBins = 5
-    freqBinN = 5
-    freqBinW = 1
-    minval = 0.0
-    maxval = 2600.0
-    normalize = False
-
-    encoder = FrequencyEncoder(frequencyCutoff, numFrequencyBins, freqBinN,
-                               freqBinW, minval, maxval, normalize=normalize)
-
-    x = np.linspace(0, 100, 100)
-
-    print '== Input signal: only zeros =='
-    inputData = np.zeros(len(x))
-    encoding = encoder.encode(inputData)
-    pprint(encoding, numFrequencyBins, freqBinN)
-
-    print '== Input signal: sine wave (5 Hz) =='
-    f = 5
-    inputData = np.sin(x * 2 * np.pi * f)
-    encoding = encoder.encode(inputData)
-    pprint(encoding, numFrequencyBins, freqBinN)
-
-    print '== Input signal: 0.5 * sine wave (5 Hz) =='
-    f = 5
-    inputData = 0.5 * np.sin(x * 2 * np.pi * f)
-    encoding = encoder.encode(inputData)
-    pprint(encoding, numFrequencyBins, freqBinN)
-
-    print '== Input signal: sine wave (10 Hz) =='
-    f = 10
-    inputData = np.sin(x * 2 * np.pi * f)
-    encoding = encoder.encode(inputData)
-    pprint(encoding, numFrequencyBins, freqBinN)
-
-    print '== Input signal: sine wave (5 Hz) + sine wave (10 Hz) =='
-    f = 5
-    inputData = np.sin(x * 2 * np.pi * f) + np.sin(x * 2 * np.pi * 2 * f)
-    encoding = encoder.encode(inputData)
-    pprint(encoding, numFrequencyBins, freqBinN)
-
-    print '== Input signal: 0.5 * sine wave (5 Hz) + sine wave (10 Hz) =='
-    f = 5
-    inputData = 0.5 * np.sin(x * 2 * np.pi * f) + np.sin(x * 2 * np.pi * 2 * f)
-    encoding = encoder.encode(inputData)
-    pprint(encoding, numFrequencyBins, freqBinN)
