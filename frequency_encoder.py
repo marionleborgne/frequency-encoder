@@ -40,14 +40,12 @@ class FrequencyEncoder(Encoder):
         self.maxval = maxval
         self.normalize = normalize
 
-
         self.outputWidth = numFrequencyBins * freqBinN
         self.scalarEncoder = ScalarEncoder(n=freqBinN,
                                            w=freqBinW,
                                            minval=minval,
                                            maxval=maxval,
                                            forced=True)
-
 
     def getWidth(self):
         """
@@ -73,32 +71,30 @@ class FrequencyEncoder(Encoder):
                 "Expected a list or numpy array but got input of type %s" % type(
                     inputData))
 
-
         if inputData is SENTINEL_VALUE_FOR_MISSING_DATA:
-          output[0:self.outputWidth] = 0
+            output[0:self.outputWidth] = 0
         else:
-            freqs = abs(np.fft.rfft(inputData))**2
+            freqs = abs(np.fft.rfft(inputData)) ** 2
             if self.normalize and np.max(freqs) > 0: freqs /= np.max(freqs)
-            freqBinSize = len(freqs)/self.numFrequencyBins
 
+            freqBinSize = len(freqs) / self.numFrequencyBins
             binEncodings = []
             for i in range(self.numFrequencyBins):
-                freqBin = freqs[i * freqBinSize:(i+1)*freqBinSize]
-                meanFreq = np.max(freqBin)
-                binEncoding = self.scalarEncoder.encode(meanFreq)
+                freqBin = freqs[i * freqBinSize:(i + 1) * freqBinSize]
+                binVal = np.max(freqBin)
+                binEncoding = self.scalarEncoder.encode(binVal)
                 binEncodings.append(binEncoding.tolist())
 
             output[0:self.outputWidth] = np.array(binEncodings).flatten()
 
+
 def pprint(encoding, numFrequencyBins, freqBinSize):
     for i in range(numFrequencyBins):
         print ('Freq bin %s: '
-               '%s' %(i,encoding[i*freqBinSize:(i+1)*freqBinSize]))
+               '%s' % (i, encoding[i * freqBinSize:(i + 1) * freqBinSize]))
 
 
 if __name__ == '__main__':
-
-
     frequencyCutoff = 30
     numFrequencyBins = 5
     freqBinN = 5
@@ -110,7 +106,6 @@ if __name__ == '__main__':
     encoder = FrequencyEncoder(frequencyCutoff, numFrequencyBins, freqBinN,
                                freqBinW, minval, maxval, normalize=normalize)
 
-
     x = np.linspace(0, 100, 100)
 
     print '== Input signal: only zeros =='
@@ -118,20 +113,17 @@ if __name__ == '__main__':
     encoding = encoder.encode(inputData)
     pprint(encoding, numFrequencyBins, freqBinN)
 
-
     print '== Input signal: sine wave (5 Hz) =='
     f = 5
     inputData = np.sin(x * 2 * np.pi * f)
     encoding = encoder.encode(inputData)
     pprint(encoding, numFrequencyBins, freqBinN)
 
-
     print '== Input signal: 0.5 * sine wave (5 Hz) =='
     f = 5
     inputData = 0.5 * np.sin(x * 2 * np.pi * f)
     encoding = encoder.encode(inputData)
     pprint(encoding, numFrequencyBins, freqBinN)
-
 
     print '== Input signal: sine wave (10 Hz) =='
     f = 10
@@ -145,10 +137,8 @@ if __name__ == '__main__':
     encoding = encoder.encode(inputData)
     pprint(encoding, numFrequencyBins, freqBinN)
 
-
     print '== Input signal: 0.5 * sine wave (5 Hz) + sine wave (10 Hz) =='
     f = 5
     inputData = 0.5 * np.sin(x * 2 * np.pi * f) + np.sin(x * 2 * np.pi * 2 * f)
     encoding = encoder.encode(inputData)
     pprint(encoding, numFrequencyBins, freqBinN)
-
