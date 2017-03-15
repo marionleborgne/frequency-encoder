@@ -1,28 +1,14 @@
 """
-To use ScalarEncoder on the power spectra of unpredictable sound chunks, we
+To use ScalarEncoder on the power spectrum of unpredictable sound chunks, we
 need an estimate of the maximum possible value that will occur in any of
 these power spectra.
 
-The exact values of the power spectrum depends on several parameters,
-including the size of the time chunk and the sampling frequency. For all
-phonemes used in the Phoneme data set from UCR, sampling frequency is
-(roughly) 22050 Hz, so we ignore this. This leaves the question of how
-max(power) varies with size of time chunk.
-
-We simply run through several plausible values of the chunk size,
-from 32 to 1024 (the phonemes all have size 1024 samples).
-
-Perhaps unsurprisingly, the maximum value of the raw power spectrum varies grows
-with time chunk size. In addition, it is badly distributed (long tail,
-high density near zero)
-
-Both problems are solved by taking the log of the power, which is also
-biologically defensible. Now max power never goes beyond 13, with a nice
-bell-curve shape (not sure it's Gaussian) centered around values ranging from
-6 to 10.
+This scripts plots the frequency of the power spectra max values for
+different chunk sizes.
 """
 import numpy as np
 import matplotlib.pyplot as plt
+from frequency_encoder import getFreqs
 
 data_path = 'UCR_TS_Archive_2015/Phoneme/Phoneme_TEST'
 full_data = np.loadtxt(data_path, delimiter=',')
@@ -39,7 +25,7 @@ for time_chunk_size in time_chunk_sizes:
   t_small = t_small.reshape(full_data.shape[0] * nb_chunks, time_chunk_size)
   psd_maximums = []
   for n in range(t_small.shape[0]):
-    psd = np.log(1.0 + abs(np.fft.rfft(t_small[n, :])) ** 2)
+    psd = getFreqs(t_small[n, :])
     psd_maximums.append(np.max(psd))
   bins = np.linspace(0, np.max(psd_maximums), 100)
   plot_idx = time_chunk_sizes.index(time_chunk_size)

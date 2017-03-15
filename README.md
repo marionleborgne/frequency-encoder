@@ -74,5 +74,6 @@ biologically defensible. Now max power never goes beyond 14, with a nice
 bell-curve shape (not sure it's Gaussian) centered around values ranging from
 6 to 10.
 
+Script to reproduce the results: `plot_max_power_histograms.py`.
 ![x](psd_maximums_distribution.png)
 
