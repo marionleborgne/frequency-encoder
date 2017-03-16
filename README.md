@@ -30,10 +30,26 @@ discretization is done by slicing the frequency axis of the power spectrum in
 
 
 ## Usage
- ```
-chunk = np.array([1.0, 2.0, 1.0, 1.0])  # An example of input to encode
+ ```python
+import numpy as np
+from frequency_encoder import FrequencyEncoder
+ 
+# Example input to encode
+chunk = np.array([1.0, 2.0, 1.0, 1.0])  
+
+# Encoder params
+numFrequencyBins = 8
+freqBinN = 8
+freqBinW = 1
+
+# Encoding
 encoder = FrequencyEncoder(numFrequencyBins, freqBinN, freqBinW)
-encoder.encode(chunk)
+encoding = encoder.encode(chunk)
+
+# Plot encoding (optional)
+import matplotlib.pyplot as plt
+plt.imshow(encoding.reshape(numFrequencyBins, freqBinN))
+
 ```
 
 Note:
