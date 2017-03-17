@@ -20,6 +20,7 @@
 # ----------------------------------------------------------------------
 
 import numpy as np
+import warnings
 
 from nupic.data import SENTINEL_VALUE_FOR_MISSING_DATA
 from nupic.encoders.base import Encoder
@@ -29,7 +30,7 @@ from nupic.encoders.scalar import ScalarEncoder
 
 class FrequencyEncoder(Encoder):
   def __init__(self, numFrequencyBins, freqBinN, freqBinW, minval=0,
-               maxval=14.0, log=True):
+               maxval=30.0, log=True, normalize=False, clipWithWarning=True):
     """
     The `FrequencyEncoder` encodes a time series chunk (or any 1D array of
     numeric values) by taking the power spectrum of the signal and
@@ -60,16 +61,38 @@ class FrequencyEncoder(Encoder):
       encode each frequency bin. In practice, the power spectrum is always
       positive, so minval=0 works well.
 
-    :param maxval: (float) optional. The maximum value of the power spectrum.
-      This determines the maxval parameter of the ScalarEncoder used to
-      encode each frequency bin. After analysis, we found that by taking the
-      log of the power spectrum allows us to use a default value of maval=14.0.
+    :param maxval: (float) optional. The maximum value allowed in the power
+      spectra. This determines the maxval parameter of the ScalarEncoder used to
+      encode each frequency bin. The default value of maxval=30.0 is based on
+      16-bit samples from CD recordings, with log-transformation and no
+      normalization (see below).  For different encodings, different values will
+      be more appropriate.  Ideally, this value should be as low as possible to
+      maximize resolution.
 
-    :param log: (bool) whether to take the log of the power spectrum.
-      Note: It is not recommended to set this to False. Taking the log dampens
-      the amplitude variations of the power spectrum and allows us (after
-      analysis) to set maxval to the default value of 14.0. If you use
-      log=False, you will have to tune the maxval value.
+    :param log: (bool) optional. If True (default), the power spectrum is
+      log-transformed before encoding. This flattens the distribution of values
+      and allows for a generic default value of maxval that should accomodate
+      most encodings. It also "compresses" the higher range of power values, which 
+      empirically improves classification in some cases. 
+      Note that it may be a good idea to scale your signal to take advantage of the 
+      log-transform: inputs with larger values will produce larger power spectrum values,
+      which will undergo more compression in the high range, while smaller signals will 
+      remain closer to the linear-like portion of the logarithmic curve. Stronger 
+      compression may improve classification performance in some cases (e.g. try to 
+      see what happens if you scale your signal within the [-1000, 1000] range).
+      If you set this parameter to False, the distribution of power spectrum values
+      will become very long-tailed and you will need to tune the maxval parameter. 
+
+    :param normalize: (bool) optional. Normalizes the power spectrum to fit the entire 
+      [minval, maxval] range. This may maximize resolution and avoids exceeding maxval, 
+      but loses information about the actual energy in the encoded sample, making all
+      encoded samples similarly "loud". 
+      Note that this is applied after any log-transforming.
+
+    :param clipWithWarning: (bool) optional. If True, power spectrum values above maxval
+      will be clipped to maxval before being fed to ScalarEncoder and a warning will be 
+      raised. If False, the power spectra are fed "as is" to ScalarEncoder, and values
+      above maxval cause an error.
     """
 
     self.numFrequencyBins = numFrequencyBins
@@ -78,6 +101,8 @@ class FrequencyEncoder(Encoder):
     self.minval = minval
     self.maxval = maxval
     self.log = log
+    self.normalize = normalize
+    self.clipWithWarning= clipWithWarning
 
     self.outputWidth = numFrequencyBins * freqBinN
     self.scalarEncoder = ScalarEncoder(n=freqBinN,
@@ -112,7 +137,13 @@ class FrequencyEncoder(Encoder):
     if inputData is SENTINEL_VALUE_FOR_MISSING_DATA:
       output[0:self.outputWidth] = 0
     else:
-      freqs = getFreqs(inputData, self.log)
+      freqs = getFreqs(inputData, self.log, self.normalize, self.minval, self.maxval)
+      if self.clipWithWarning:
+          nbabovemax = np.sum(freqs > self.maxval)
+          if nbabovemax > 0:
+              warnings.warn(str(nbabovemax)+" out of "+str(len(freqs))+" power spectrum values higher than maximum allowed value "+str(self.maxval)+", clipping...")
+              freqs[freqs > self.maxval] = self.maxval
+
       freqBinSize = len(freqs) / self.numFrequencyBins
       binEncodings = []
       for i in range(self.numFrequencyBins):
@@ -125,20 +156,32 @@ class FrequencyEncoder(Encoder):
 
 
 
-def getFreqs(data, log=True):
+def getFreqs(data, log=True, normalize=False, minval=0.0, maxval=30.0):
   """
   Get the FFT of a 1-D array.
 
   :param data: (np.array) input signal to analyze.
   :param log: (bool) whether to take the log of the power spectrum. Taking
-      the log with minimize amplitude variations.
+      the log minimizes variations in maximum power, normalizes overall 
+      distribution of powers and squashes resolution at higher energies, 
+      which may actually help classification.
+  :param normalize: (bool) whether to normalize the power spectrum within 
+      the [minval, maxval] range before encoding (but after log-transform).
+  :param minval: (scalar) minimum value to use in the normalization. 
+  :param maxval: (scalar) maximum value to use in the normalization. 
   :return fft: (np.array) the power spectrum of the input signal.
   """
-  fft = abs(np.fft.rfft(data)) ** 2
+  fft = (abs(np.fft.rfft(data)) ** 2) / len(data)
+
   if log:
-    return np.log(1 + fft)
-  else:
-    return fft
+    fft =  np.log(1 + fft)
+  
+  if normalize:
+      fft = fft - np.min(fft)
+      fft = fft / np.max(fft)  # now fft is normalized to [0,1]
+      fft = minval + fft * (maxval-minval) # now fft is normalized to [minval, maxval]
+
+  return fft
 
 
 
